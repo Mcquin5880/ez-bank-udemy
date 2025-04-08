@@ -1,0 +1,27 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: account-svc
+  datasource:
+    url: jdbc:h2:mem:accountdb
+    username: sa
+    password: ''
+  h2:
+    console:
+      enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+ez-bank:
+  fees:
+    hidden: 29.99
+    monthly-scam: 19.95
+  premium-fees:
+    hidden: 49.99
+    monthly-scam: 39.95
+  messages:
+    welcome-template: "Congratulations {firstName}! Your {accountType} account has been created successfully. Your account number is {accountNumber} with an available balance of ${balance}. Welcome to EZ-Bank, where your money is our money!"
