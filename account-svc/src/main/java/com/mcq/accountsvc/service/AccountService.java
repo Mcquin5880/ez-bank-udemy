@@ -2,6 +2,7 @@ package com.mcq.accountsvc.service;
 
 import com.mcq.accountsvc.config.MessageProperties;
 import com.mcq.accountsvc.config.SneakyFeesProperties;
+import com.mcq.accountsvc.dto.AccountMsgDto;
 import com.mcq.accountsvc.dto.CustomerAccountRequest;
 import com.mcq.accountsvc.dto.CustomerAccountResponse;
 import com.mcq.accountsvc.entity.Account;
@@ -9,6 +10,8 @@ import com.mcq.accountsvc.entity.Customer;
 import com.mcq.accountsvc.exception.ResourceNotFoundException;
 import com.mcq.accountsvc.repository.AccountRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,32 +21,14 @@ import java.util.Random;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AccountService {
 
     private final AccountRepository accountRepository;
     private final CustomerService customerService;
+    private final StreamBridge streamBridge;
     private final SneakyFeesProperties sneakyFeesProperties;
     private final MessageProperties messageProperties;
-
-    public Account createAccount(Account account) {
-
-        account.setAccountNumber(generateAccountNumber());
-
-        if (account.getHiddenFees() == null) {
-            if (account.getAccountType() == Account.AccountType.PREMIUM) {
-                account.setHiddenFees(sneakyFeesProperties.getPremiumFees().getHidden());
-                account.setMonthlyScamFee(sneakyFeesProperties.getPremiumFees().getMonthlyScam());
-            } else {
-                account.setHiddenFees(sneakyFeesProperties.getFees().getHidden());
-                account.setMonthlyScamFee(sneakyFeesProperties.getFees().getMonthlyScam());
-            }
-        }
-
-        BigDecimal actualBalance = account.getBalance().subtract(account.getHiddenFees());
-        account.setBalance(actualBalance);
-
-        return accountRepository.save(account);
-    }
 
     @Transactional
     public CustomerAccountResponse createCustomerWithAccount(CustomerAccountRequest request) {
@@ -70,6 +55,8 @@ public class AccountService {
 
         Account savedAccount = createAccount(account);
 
+        sendCommunication(savedAccount, savedCustomer);
+
         return CustomerAccountResponse.builder()
                 .customerId(savedCustomer.getId())
                 .firstName(savedCustomer.getFirstName())
@@ -86,6 +73,26 @@ public class AccountService {
                 .build();
     }
 
+    public Account createAccount(Account account) {
+
+        account.setAccountNumber(generateAccountNumber());
+
+        if (account.getHiddenFees() == null) {
+            if (account.getAccountType() == Account.AccountType.PREMIUM) {
+                account.setHiddenFees(sneakyFeesProperties.getPremiumFees().getHidden());
+                account.setMonthlyScamFee(sneakyFeesProperties.getPremiumFees().getMonthlyScam());
+            } else {
+                account.setHiddenFees(sneakyFeesProperties.getFees().getHidden());
+                account.setMonthlyScamFee(sneakyFeesProperties.getFees().getMonthlyScam());
+            }
+        }
+
+        BigDecimal actualBalance = account.getBalance().subtract(account.getHiddenFees());
+        account.setBalance(actualBalance);
+
+        return accountRepository.save(account);
+    }
+
     public Account getAccountById(Long id) {
         return accountRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Account not found with id: " + id));
@@ -98,6 +105,21 @@ public class AccountService {
     public Account getAccountByNumber(String accountNumber) {
         return accountRepository.findByAccountNumber(accountNumber)
                 .orElseThrow(() -> new ResourceNotFoundException("Account not found with number: " + accountNumber));
+    }
+
+    public void updateCommunicationStatus(String accountNumber) {
+        Account account = accountRepository.findByAccountNumber(accountNumber)
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found with number: " + accountNumber));
+        account.setCommunicationSwitch(true);
+        accountRepository.save(account);
+    }
+
+    private void sendCommunication(Account account, Customer customer) {
+        AccountMsgDto accountMsgDto = new AccountMsgDto(account.getAccountNumber(), customer.getFirstName(), customer.getLastName(),
+                customer.getEmail(), customer.getMobileNumber());
+        log.info("Sending communication request: {}", accountMsgDto);
+        boolean result = streamBridge.send("sendCommunication-out-0", accountMsgDto);
+        log.info("Communication request triggered: {}", result);
     }
 
     private String generateAccountNumber() {

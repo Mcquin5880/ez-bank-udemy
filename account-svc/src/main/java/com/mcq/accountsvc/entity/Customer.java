@@ -9,6 +9,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDate;
 
@@ -47,16 +48,9 @@ public class Customer {
 
     private Integer gullibilityScore;
 
-    private Boolean hasBeenScammed;
+    private boolean hasBeenScammed;
 
-    @Column(name = "created_at", updatable = false)
+    @CreationTimestamp
     private LocalDate createdAt;
 
-    @PrePersist
-    protected void onCreate() {
-        createdAt = LocalDate.now();
-        if (hasBeenScammed == null) {
-            hasBeenScammed = false;
-        }
-    }
 }

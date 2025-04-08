@@ -2,6 +2,7 @@ package com.mcq.accountsvc.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -36,18 +37,12 @@ public class Account {
 
     private String branchCode;
 
-    @Column(name = "created_at", updatable = false)
+    @CreationTimestamp
     private LocalDate createdAt;
 
-    private Boolean isActive;
+    private boolean isActive;
 
-    @PrePersist
-    protected void onCreate() {
-        createdAt = LocalDate.now();
-        if (isActive == null) {
-            isActive = true;
-        }
-    }
+    private boolean communicationSwitch;
 
     @Getter
     public enum AccountType {
